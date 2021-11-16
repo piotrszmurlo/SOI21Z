@@ -183,7 +183,7 @@ PUBLIC int do_getprocnr(void)
   int proc_id;
   for (proc_id = 0; proc_id < NR_PROCS; proc_id++)
   {
-    if(((IN_USE & mproc[proc_id].mp_flags) != 0) && (mproc[proc_id].mp_pid == pid))
+    if((IN_USE & mproc[proc_id].mp_flags) && (mproc[proc_id].mp_pid == pid))
     {
       return proc_id;
     }
