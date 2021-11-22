@@ -25,6 +25,7 @@ PUBLIC void main()
 {
 /* Start the ball rolling. */
 
+  ab_ratio = 25;
   register struct proc *rp;
   register int t;
   int hdrindex;
@@ -37,7 +38,6 @@ PUBLIC void main()
   struct tasktab *ttp;
   struct exec e_hdr;
 
-  ab_ratio = 25;
 
   /* Initialize the interrupt controller. */
   intr_init(1);

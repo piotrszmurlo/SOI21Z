@@ -4,8 +4,8 @@
 #define GROUP_A 0
 #define GROUP_B 1
 
-int ab_ratio;			/* A:B process ratio: 50 -> 1:1, 25 -> 1:3 */
-int new_sched_ticks;	/* new tick number based on process ratio */
+// int ab_ratio;			/* A:B process ratio: 50 -> 1:1, 25 -> 1:3 */
+// int new_sched_ticks;	/* new tick number based on process ratio */
 
 /* Here is the declaration of the process table.  It contains the process'
  * registers, memory map, accounting, and message send/receive information.
