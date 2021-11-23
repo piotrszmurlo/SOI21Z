@@ -146,8 +146,10 @@ FORWARD _PROTOTYPE( int do_getmap, (message *m_ptr) );
 FORWARD _PROTOTYPE( int do_sysctl, (message *m_ptr) );
 FORWARD _PROTOTYPE( int do_puts, (message *m_ptr) );
 FORWARD _PROTOTYPE( int do_findproc, (message *m_ptr) );
+FORWARD _PROTOTYPE( int do_setabratio, (message *m_ptr) );
 FORWARD _PROTOTYPE( int do_setprocgroup, (message *m_ptr) );
-FORWARD _PROTOTYPE( int do_setgroupratio, (message *m_ptr) );
+FORWARD _PROTOTYPE( int do_getprocgroup, (message *m_ptr) );
+
 
 /*===========================================================================*
  *				sys_task				     *
@@ -182,8 +184,9 @@ PUBLIC void sys_task()
 	    case SYS_SYSCTL:	r = do_sysctl(&m);	break;
 	    case SYS_PUTS:	r = do_puts(&m);	break;
 	    case SYS_FINDPROC:	r = do_findproc(&m);	break;
+      case SYS_SETABRATIO: r = do_setabratio(&m); break;
       case SYS_SETPROCGROUP: r = do_setprocgroup(&m); break;
-      case SYS_SETGROUPRATIO: r = do_setgroupratio(&m); break;
+      case SYS_GETPROCGROUP: r = do_getprocgroup(&m); break;
 	    default:		r = E_BAD_FCN;
 	}
 
@@ -238,13 +241,8 @@ register message *m_ptr;	/* pointer to request message */
   rpc->sys_time = 0;
   rpc->child_utime = 0;
   rpc->child_stime = 0;
+  rpc->group = rpc->p_pid % 2;
 
-  if (rpc->p_pid%2){
-    rpc->group = GROUP_A;
-  }
-  else {
-    rpc->group = GROUP_B;
-  }
   return(OK);
 }
 
@@ -1236,24 +1234,46 @@ register struct proc *rp;
 }
 #endif /* (CHIP == INTEL) */
 
-PRIVATE int do_setprocgroup(message *m_ptr) {
-  if (m_ptr->m1_i2 == 0 || m_ptr->m1_i2 == 1) {
-    struct proc *proc_;
-    for (proc_ = BEG_PROC_ADDR; proc_ < END_PROC_ADDR; proc_++) {
-      if (proc_->p_priority == PPRI_USER && proc_->p_pid == m_ptr->m1_i1) {
-        proc_->group = m_ptr->m1_i2;
-        return OK;
-      }
-    }
-    return ESRCH;
+PRIVATE int do_setabratio(message *m_ptr) {
+  int mod, x, y;
+  int a, b;
+  mod = 1;
+  x = m_ptr->m1_i1;
+  y = 100 - m_ptr->m1_i1;
+  a = x;
+  b = y;
+  while(mod!=0) {
+    mod = x % y;
+    x = y;
+    y = mod;
   }
-  return EINVAL;
+   a_count_ref = a/x;
+   b_count_ref = b/x;
+   a_count = a_count_ref;
+   b_count = b_count_ref;
+  return OK;
 }
 
-PRIVATE int do_setgroupratio(message *m_ptr) {
-  if (m_ptr->m1_i1 > 0 && m_ptr->m1_i1 < 100) {
-    new_sched_ticks = m_ptr->m1_i1;
-    return OK;
+PRIVATE int do_setprocgroup(message *m_ptr) {
+  struct proc *new_proc;
+  int new_group = m_ptr->m1_i2;
+  for(new_proc = BEG_PROC_ADDR; new_proc < END_PROC_ADDR; new_proc++) {
+    if(new_proc->p_priority == PPRI_USER && new_proc->p_pid == m_ptr->m1_i1) {
+        new_proc->group = new_group;
+        return OK;
+    }
   }
-  return EINVAL;
+  return ESRCH;
 }
+
+PRIVATE int do_getprocgroup(message *m_ptr)
+{
+   struct proc *new_proc;
+   for(new_proc = BEG_PROC_ADDR; new_proc < END_PROC_ADDR; new_proc++) {
+      if(new_proc->p_priority == PPRI_USER && new_proc->p_pid == m_ptr->m1_i1) {
+         return new_proc->group;
+      }
+   }
+    return ESRCH;
+}
+

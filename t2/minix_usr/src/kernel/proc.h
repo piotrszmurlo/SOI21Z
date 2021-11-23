@@ -11,7 +11,10 @@
  * 'proc', be sure to change sconst.h to match.
  */
 
-int ab_ratio, new_sched_ticks;
+int a_count;
+int b_count;
+int a_count_ref;
+int b_count_ref;
 
 struct proc {
   struct stackframe_s p_reg;	/* process' registers saved in stack frame */

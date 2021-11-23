@@ -179,15 +179,17 @@ PRIVATE void mm_init()
   }
 }
 
-PUBLIC int do_setprocgroup() {
-  message m;
-  m = mm_in;
-  return _taskcall(SYSTASK, SYS_SETPROCGROUP, &m);
+PUBLIC int do_setabratio() {
+  message m = mm_in;
+  return _taskcall(SYSTASK, SYS_SETABRATIO, &m);
 }
 
-PUBLIC int do_setgroupratio() {
-  message m;
-  m = mm_in;
-  return _taskcall(SYSTASK, SYS_SETGROUPRATIO, &m);
+PUBLIC int do_setprocgroup() {
+   message m = mm_in;
+   return _taskcall(SYSTASK, SYS_SETPROCGROUP, &m);
+}
 
+PUBLIC int do_getprocgroup() {
+   message m = mm_in;
+   return _taskcall(SYSTASK, SYS_GETPROCGROUP, &m);
 }

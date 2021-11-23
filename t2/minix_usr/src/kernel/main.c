@@ -35,8 +35,10 @@ PUBLIC void main()
   struct memory *memp;
   struct tasktab *ttp;
   struct exec e_hdr;
-
-  ab_ratio = 25;
+  a_count_ref = 1;
+  b_count_ref = 3;
+  a_count = 1;
+  b_count = 3;
 
   /* Initialize the interrupt controller. */
   intr_init(1);

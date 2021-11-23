@@ -317,24 +317,6 @@ PRIVATE void pick_proc()
 	return;
   }
   if ( (rp = rdy_head[USER_Q]) != NIL_PROC) {
-	  int b_part;
-    float total_ticks;
-    b_part = 100 - ab_ratio;
-    if (ab_ratio < b_part){
-    total_ticks = 600/ab_ratio;
-    
-    }
-    else {  
-    total_ticks = 600/b_part;
-    
-    if (rp->group == 0) {
-      new_sched_ticks = total_ticks - total_ticks*b_part/100;
-    }
-    else {
-      new_sched_ticks = total_ticks - total_ticks*ab_ratio/100;  
-    }
-    
-  }
 	proc_ptr = rp;
 	bill_ptr = rp;
 	return;
@@ -458,12 +440,25 @@ PRIVATE void sched()
 
   if (rdy_head[USER_Q] == NIL_PROC) return;
 
+  if(rdy_head[USER_Q]->group==GROUP_A && a_count > 1) {
+    a_count--;
+    pick_proc();
+    return;
+  }
+  else if(rdy_head[USER_Q]->group==GROUP_B && b_count > 1){
+    b_count--;
+    pick_proc();
+    return;
+  }
+
   /* One or more user processes queued. */
   rdy_tail[USER_Q]->p_nextready = rdy_head[USER_Q];
   rdy_tail[USER_Q] = rdy_head[USER_Q];
   rdy_head[USER_Q] = rdy_head[USER_Q]->p_nextready;
   rdy_tail[USER_Q]->p_nextready = NIL_PROC;
   pick_proc();
+  a_count = a_count_ref;
+  b_count = b_count_ref;
 }
 
 /*==========================================================================*

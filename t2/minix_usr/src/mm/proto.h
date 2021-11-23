@@ -37,8 +37,9 @@ _PROTOTYPE( int do_getset, (void)					);
 
 /* main.c */
 _PROTOTYPE( void main, (void)						);
-_PROTOTYPE( int do_setprocgroup, (void) 			);
-_PROTOTYPE( int do_setgroupratio, (void) 			);
+_PROTOTYPE( int do_setabratio, (void)				);
+_PROTOTYPE( int do_setprocgroup, (void)				);
+_PROTOTYPE( int do_getprocgroup, (void)				);
 
 /* misc.c */
 _PROTOTYPE( int do_reboot, (void)					);
