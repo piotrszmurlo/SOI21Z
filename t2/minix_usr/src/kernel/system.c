@@ -1255,11 +1255,10 @@ PRIVATE int do_setabratio(message *m_ptr) {
 }
 
 PRIVATE int do_setprocgroup(message *m_ptr) {
-  struct proc *new_proc;
-  int new_group = m_ptr->m1_i2;
-  for(new_proc = BEG_PROC_ADDR; new_proc < END_PROC_ADDR; new_proc++) {
-    if(new_proc->p_priority == PPRI_USER && new_proc->p_pid == m_ptr->m1_i1) {
-        new_proc->group = new_group;
+  struct proc *proc_;
+  for(proc_= BEG_PROC_ADDR; proc_ < END_PROC_ADDR; proc_++) {
+    if(proc_->p_priority == PPRI_USER && proc_->p_pid == m_ptr->m1_i1) {
+        proc_->group = m_ptr->m1_i2;
         return OK;
     }
   }
@@ -1268,10 +1267,10 @@ PRIVATE int do_setprocgroup(message *m_ptr) {
 
 PRIVATE int do_getprocgroup(message *m_ptr)
 {
-   struct proc *new_proc;
-   for(new_proc = BEG_PROC_ADDR; new_proc < END_PROC_ADDR; new_proc++) {
-      if(new_proc->p_priority == PPRI_USER && new_proc->p_pid == m_ptr->m1_i1) {
-         return new_proc->group;
+   struct proc *proc_;
+   for(proc_ = BEG_PROC_ADDR; proc_ < END_PROC_ADDR; proc_++) {
+      if(proc_->p_priority == PPRI_USER && proc_->p_pid == m_ptr->m1_i1) {
+         return proc_->group;
       }
    }
     return ESRCH;

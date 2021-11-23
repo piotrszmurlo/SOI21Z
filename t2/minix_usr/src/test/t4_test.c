@@ -4,10 +4,18 @@
 #include <math.h>
 #include <unistd.h>
 
-int main(int argc, char* argv) {
+int getprocgroup(int pid) {
+   message m;
+   m.m1_i1 = pid;
+   return _syscall(MM, GETPROCGROUP, &m);
+}
+
+int main(int argc, char* argv[]) {
     int i;
-    for(i = 0; i < 40000; i++)
+    pid_t pid;
+    for(i = 0; i < 15000; i++)
         sqrt(i);
-    printf("\tPID: %d\n", getpid()); 
+    pid = getpid();
+    printf("PID: %d; grupa: %d\n", pid, getprocgroup(pid)); 
     return 0;
 }
