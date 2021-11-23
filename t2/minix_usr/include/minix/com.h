@@ -134,8 +134,8 @@
 #	define SYS_PUTS      20	/* fcn code for sys_puts(count, buf) */
 #	define SYS_FINDPROC  21	/* fcn code for sys_findproc(name, &task_nr,
 				   flags) */
-#	define SETPROCGROUP  78
-#	define SETABRATIO    79
+#	define SYS_SETPROCGROUP 22
+#	define SYS_SETGROUPRATIO 23
 
 #define HARDWARE          -1	/* used as source on interrupt generated msgs*/
 
@@ -199,7 +199,3 @@
 #define SIG_MAP        m2_l1	/* used by kernel for passing signal bit map */
 #define SIG_MSG_PTR    m1_i1	/* pointer to info to build sig catch stack */
 #define SIG_CTXT_PTR   m1_p1	/* pointer to info to restore signal context */
-
-
-int ab_ratio;			/* A:B process ratio: 50 -> 1:1, 25 -> 1:3 */
-int new_sched_ticks;	/* new tick number based on process ratio */

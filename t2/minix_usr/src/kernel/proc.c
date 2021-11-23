@@ -317,8 +317,7 @@ PRIVATE void pick_proc()
 	return;
   }
   if ( (rp = rdy_head[USER_Q]) != NIL_PROC) {
-
-    int b_part;
+	  int b_part;
     float total_ticks;
     b_part = 100 - ab_ratio;
     if (ab_ratio < b_part){

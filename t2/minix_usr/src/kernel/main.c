@@ -17,7 +17,6 @@
 #include "proc.h"
 
 
-
 /*===========================================================================*
  *                                   main                                    *
  *===========================================================================*/
@@ -25,7 +24,6 @@ PUBLIC void main()
 {
 /* Start the ball rolling. */
 
-  ab_ratio = 25;
   register struct proc *rp;
   register int t;
   int hdrindex;
@@ -38,6 +36,7 @@ PUBLIC void main()
   struct tasktab *ttp;
   struct exec e_hdr;
 
+  ab_ratio = 25;
 
   /* Initialize the interrupt controller. */
   intr_init(1);
@@ -49,14 +48,8 @@ PUBLIC void main()
    * Set up mappings for proc_addr() and proc_number() macros.
    */
   for (rp = BEG_PROC_ADDR, t = -NR_TASKS; rp < END_PROC_ADDR; ++rp, ++t) {
-		rp->p_nr = t;		/* proc number from ptr */
+	rp->p_nr = t;		/* proc number from ptr */
         (pproc_addr + NR_TASKS)[t] = rp;        /* proc ptr from number */
-		if (t%2){
-			rp->group = GROUP_A;
-		}
-		else {
-			rp->group = GROUP_B;
-		}
   }
 
   /* Resolve driver selections in the task table. */
@@ -139,7 +132,6 @@ PUBLIC void main()
   }
 
   proc[NR_TASKS+INIT_PROC_NR].p_pid = 1;/* INIT of course has pid 1 */
-  proc[NR_TASKS+INIT_PROC_NR].group = GROUP_B;
   bill_ptr = proc_addr(IDLE);		/* it has to point somewhere */
   proc_addr(IDLE)->p_priority = PPRI_IDLE;
   lock_pick_proc();

@@ -475,7 +475,7 @@ int irq;
 
   if (--sched_ticks == 0) {
 	/* If bill_ptr == prev_ptr, no ready users so don't need sched(). */
-	sched_ticks = SCHED_RATE;	/* reset quantum */
+	sched_ticks = new_sched_ticks;	/* reset quantum */
 	prev_ptr = bill_ptr;		/* new previous process */
   }
   return 1;	/* Reenable clock interrupt */

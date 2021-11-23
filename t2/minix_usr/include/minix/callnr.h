@@ -65,3 +65,6 @@
 
 #define REBOOT		  76
 #define SVRCTL		  77
+
+#define SETPROCGROUP  78
+#define SETGROUPRATIO 79

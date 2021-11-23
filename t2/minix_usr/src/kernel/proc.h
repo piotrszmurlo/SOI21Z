@@ -4,15 +4,14 @@
 #define GROUP_A 0
 #define GROUP_B 1
 
-// int ab_ratio;			/* A:B process ratio: 50 -> 1:1, 25 -> 1:3 */
-// int new_sched_ticks;	/* new tick number based on process ratio */
-
 /* Here is the declaration of the process table.  It contains the process'
  * registers, memory map, accounting, and message send/receive information.
  * Many assembly code routines reference fields in it.  The offsets to these
  * fields are defined in the assembler include file sconst.h.  When changing
  * 'proc', be sure to change sconst.h to match.
  */
+
+int ab_ratio, new_sched_ticks;
 
 struct proc {
   struct stackframe_s p_reg;	/* process' registers saved in stack frame */
@@ -64,8 +63,7 @@ struct proc {
   unsigned p_pendcount;		/* count of pending and unfinished signals */
 
   char p_name[16];		/* name of the process */
-
-  int group;          /* process group - either A(0) or B(1)*/
+  int group;
 };
 
 /* Guard word for task stacks. */
