@@ -24,7 +24,6 @@ typedef struct superblock {
     unsigned int usedBlocksCount;
     unsigned int freeBlocksCount;
     unsigned int inodeCount;
-    // node* inodesListHead;
     inode inodes[MAX_FILE_COUNT]; 
     int used_inodes[MAX_FILE_COUNT]; 
     unsigned int blockMap[BLOCK_COUNT]
@@ -61,9 +60,6 @@ int create_vfs(void) {
     for (int i = 0; i < BLOCK_COUNT; i++){
         sb->blockMap[i] = 0;
     }
-    ///
-    // sb->blockMap[2]
-    ///
     int byte_size;
     byte_size = sizeof(superblock) + BLOCK_COUNT * BLOCK_SIZE 
                                    + MAX_FILE_COUNT * sizeof(inode);
@@ -84,6 +80,36 @@ int find_free_block() {
     return -1;
 }
 
+int rewrite_superblock(int fildes) {
+    lseek(fildes, 0, SEEK_SET);
+    write(fildes, gsb, sizeof(superblock));
+    return 0;
+}
+
+int read_superblock(int fildes) {
+    inode inodes[MAX_FILE_COUNT]; 
+    int used_inodes[MAX_FILE_COUNT]; 
+    lseek(fildes, 0, SEEK_SET);
+    read(fildes, &gsb->filesystemSize, sizeof(unsigned int));
+    read(fildes, &gsb->blockSize, sizeof(unsigned int));
+    read(fildes, &gsb->usedBlocksCount, sizeof(unsigned int));
+    read(fildes, &gsb->freeBlocksCount, sizeof(unsigned int));
+    read(fildes, &gsb->inodeCount, sizeof(unsigned int));
+    read(fildes, gsb->blockMap, sizeof(unsigned int)*BLOCK_COUNT);
+    int offset = 5*sizeof(unsigned int);
+    lseek(fildes, offset, SEEK_SET);
+    
+    for (int i = 0; i < MAX_FILE_COUNT; i++){
+        read(fildes, &(&gsb->inodes[i])->fileName, MAX_FILENAME_LENGTH*sizeof(char));
+        read(fildes, &(&gsb->inodes[i])->fileSize, sizeof(unsigned int));
+        read(fildes, &(&gsb->inodes[i])->firstDataBlock, sizeof(unsigned int));
+    }
+    offset = offset + sizeof(gsb->inodes);
+    lseek(fildes, offset, SEEK_SET);
+    read(fildes, &(gsb->used_inodes), MAX_FILE_COUNT*sizeof(int));
+    lseek(fildes, 0, SEEK_SET);
+
+}
 
 int check_space(int fildes, unsigned int fileSize) {
     // superblock *sb = malloc(sizeof(superblock));
@@ -127,6 +153,7 @@ int copy_file_to_vfs(int fildes, char* fileName) {
             break;
         }
     }
+    printf("i: %d\n", i);
     gsb->used_inodes[i] = 1;
     gsb->inodeCount--;
     inode* newInode = malloc(sizeof(inode));
@@ -136,6 +163,11 @@ int copy_file_to_vfs(int fildes, char* fileName) {
     newInode->firstDataBlock = (unsigned int)find_free_block();
     block* newBlock = malloc(sizeof(block));
     gsb->blockMap[newInode->firstDataBlock] = (unsigned int)1;
+    for (int i = 0; i < MAX_FILE_COUNT; i++){
+        if (!gsb->used_inodes[i]){
+            gsb->inodes[i] = *newInode;
+        }
+    }
     lseek(fildes, (newInode->firstDataBlock)*BLOCK_SIZE + sizeof(superblock), SEEK_SET);
     // char buf[BLOCK_SIZE-4];
     int rd = read(newFile, newBlock->data, BLOCK_SIZE-4);
@@ -157,7 +189,29 @@ int copy_file_to_vfs(int fildes, char* fileName) {
     
     
     close(newFile);
+    rewrite_superblock(fildes);
 }
+
+int print_files(int fildes){
+    inode inodes[MAX_FILE_COUNT]; 
+    int used_inodes[MAX_FILE_COUNT]; 
+    int offset = 5*sizeof(unsigned int);
+    lseek(fildes, offset, SEEK_SET);
+
+    for (int i = 0; i < MAX_FILE_COUNT; i++){
+        read(fildes, &(&inodes[i])->fileName, MAX_FILENAME_LENGTH*sizeof(char));
+        read(fildes, &(&inodes[i])->fileSize, sizeof(unsigned int));
+        read(fildes, &(&inodes[i])->firstDataBlock, sizeof(unsigned int));
+    }
+    offset = offset + sizeof(gsb->inodes);
+    lseek(fildes, offset, SEEK_SET);
+    read(fildes, &used_inodes, MAX_FILE_COUNT*sizeof(int));
+    for (int i = 0; i < MAX_FILE_COUNT; i++){
+        if (used_inodes[i])
+        printf("PLIK: %s\n", (&inodes[i+1])->fileName);
+    }
+}
+
 
 
 
@@ -165,16 +219,16 @@ int main(int argc, char** argv) {
     char *filename = "vdisk";
     vdiskID = open(filename, O_RDWR | O_CREAT);
 
-    char buffer[BLOCK_SIZE] = {0}; 
-    int i = sizeof(buffer);
-    printf("hello%d\n", (int)sizeof(block));
-
     create_vfs();
     check_space(vdiskID, 100);
-    copy_file_to_vfs(vdiskID, "a");
-    copy_file_to_vfs(vdiskID, "b");
-    copy_file_to_vfs(vdiskID, "c");
-    int a = -1;
+    printf("ilosc %d\n", gsb->inodeCount);
+    // copy_file_to_vfs(vdiskID, "koxakox");
+    // copy_file_to_vfs(vdiskID, "koxbkox");
+    read_superblock(vdiskID);
+    rewrite_superblock(vdiskID);
+    // copy_file_to_vfs(vdiskID, "koxckox");
+    // copy_file_to_vfs(vdiskID, "koxckox");
+    print_files(vdiskID);
     close(vdiskID);
 
 }
