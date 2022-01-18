@@ -8,7 +8,7 @@
 
 #define MAX_FILENAME_LENGTH 32
 #define BLOCK_SIZE 512
-#define BLOCK_COUNT 128
+#define BLOCK_COUNT 32
 #define MAX_FILE_COUNT 6
 
 typedef struct inode {
@@ -124,6 +124,14 @@ int check_space(int fildes, unsigned int fileSize) {
 }
 
 int copy_file_to_vfs(int fildes, char* fileName) {
+
+    read_superblock(fildes);
+    for (int i = 0; i < gsb->inodeCount; i++) {
+        if (strcasecmp((&gsb->inodes[i])->fileName, fileName) == 0 && gsb->used_inodes[i]) {
+            printf("file with given name already exists\n");
+            return -1;
+        }
+    }
     struct stat stbuf;
     stat(fileName, &stbuf);
     int newFile = open(fileName, O_RDONLY, 0666);
@@ -140,6 +148,7 @@ int copy_file_to_vfs(int fildes, char* fileName) {
         }
     }
     gsb->inodeCount++;
+    // inode inod; 
     inode* newInode = malloc(sizeof(inode));
     strncpy(newInode->fileName, fileName, MAX_FILENAME_LENGTH-1);
     newInode->fileSize = stbuf.st_size;
@@ -157,25 +166,51 @@ int copy_file_to_vfs(int fildes, char* fileName) {
     gsb->used_inodes[i] = 1;
     lseek(fildes, (newInode->firstDataBlock)*BLOCK_SIZE + sizeof(superblock), SEEK_SET);
     int rd = read(newFile, newBlock->data, BLOCK_SIZE-4);
+    char temp[BLOCK_SIZE-4];
     while (rd)
     {
         if (rd < BLOCK_SIZE-4) {
             newBlock->nextBlock = -1;
+            gsb->usedBlocksCount++;
+            gsb->freeBlocksCount--;
+            write(fildes, &newBlock->data, BLOCK_SIZE-4);
+            write(fildes, &newBlock->nextBlock, 4);
+            close(newFile);
+            rewrite_superblock(fildes);
+            return 0;
         }
         else {
+            int check_eof = read(newFile, temp, BLOCK_SIZE-4);
+            if (check_eof == 0){
+                newBlock->nextBlock = -1;
+                gsb->usedBlocksCount++;
+                gsb->freeBlocksCount--;
+                write(fildes, &newBlock->data, BLOCK_SIZE-4);
+                write(fildes, &newBlock->nextBlock, 4);
+                close(newFile);
+                rewrite_superblock(fildes);
+                return 0;
+            }
+            lseek(newFile, -1*check_eof, SEEK_CUR);
             newBlock->nextBlock = find_free_block();
             gsb->blockMap[newBlock->nextBlock] = 1;
         }
         gsb->usedBlocksCount++;
         gsb->freeBlocksCount--;
         write(fildes, newBlock, BLOCK_SIZE);
+        for (int i = 0; i < BLOCK_SIZE-4; i++) {
+            newBlock->data[i] = '\0';
+        }
         lseek(fildes, newBlock->nextBlock*BLOCK_SIZE + sizeof(superblock), SEEK_SET);
+        
         rd = read(newFile, newBlock->data, BLOCK_SIZE-4);
     }
     
-    
     close(newFile);
     rewrite_superblock(fildes);
+    free(newInode);
+    free(newBlock);
+    return 0;
 }
 
 int print_files(int fildes){
@@ -273,9 +308,7 @@ int delete_file(int fildes, char* fileName) {
         lseek(fildes, buffer->nextBlock*BLOCK_SIZE + sizeof(superblock), SEEK_SET);
         write(fildes, buffer->data, BLOCK_SIZE-4);
         read(fildes, &buffer->nextBlock, sizeof(unsigned int));
-        lseek(fildes, (buffer->nextBlock+1)*BLOCK_SIZE + sizeof(superblock) - sizeof(unsigned int), SEEK_SET);
-        write(fildes, &zero, sizeof(unsigned int));
-    } while (buffer->nextBlock != -1);
+    } while (buffer->nextBlock != -1 && buffer->nextBlock != 0);
     gsb->filesystemSize = gsb->filesystemSize - fileNode->fileSize;
     gsb->inodeCount--;
     free(buffer);
@@ -285,9 +318,9 @@ int delete_file(int fildes, char* fileName) {
 int delete_vdisk(char* filename, int fildes){
     close(fildes);
     if (remove(filename) == 0)
-      printf("vdisk eleted successfully");
+      printf("vdisk deleted successfully\n");
    else
-      printf("error deleting vdisk");
+      printf("error deleting vdisk\n");
    return 0;
 }
 
@@ -296,12 +329,17 @@ int main(int argc, char* argv[]) {
         printf("usage: ./fs -[command] [vdisk_name] [file_name] \n");
         return -1;
     }
-    gsb = malloc(sizeof(superblock));
+    superblock sb;
+    gsb = &sb;
     mode_t mask = 0000;
     umask(mask);
-    int vdiskID = open(argv[2], O_RDWR | O_CREAT, 0666);
+    
 
     if (strcasecmp(argv[1], "-create") == 0) {
+        int vdiskID = open(argv[2], O_RDWR | O_CREAT, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+        }
         if(create_vfs(vdiskID)){
             printf("error creating vdisk\n");
             return -1;
@@ -309,6 +347,11 @@ int main(int argc, char* argv[]) {
         printf("created vdisk\n");
     }
     else if (strcasecmp(argv[1], "-put") == 0) {
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         read_superblock(vdiskID);
         if(copy_file_to_vfs(vdiskID, argv[3])){
             printf("error copying file\n");
@@ -317,37 +360,72 @@ int main(int argc, char* argv[]) {
         printf("file copied to vdisk\n");
     }
     else if (strcasecmp(argv[1], "-cut") == 0) {
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         if(copy_file_from_vfs(vdiskID, argv[3])){
             return -1;
         }    
-        printf("copied file");
+        printf("copied file from vdisk\n");
     }
     else if (strcasecmp(argv[1], "-ls") == 0) {
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         read_superblock(vdiskID);
         if(print_files(vdiskID)){
+            close(vdiskID);
             return -1;
         }    
+        close(vdiskID);
     }
     else if (strcasecmp(argv[1], "-rm") == 0){
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         if(delete_file(vdiskID, argv[3])) {
+            close(vdiskID);
             return -1;
         }    
+        printf("removed file");
+        close(vdiskID);
     }
     else if (strcasecmp(argv[1], "-wipe") == 0){
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         if(delete_vdisk(argv[2], vdiskID)) {
+            close(vdiskID);
             return -1;
         }    
+        printf("deleted vdisk\n");
+        close(vdiskID);
     }
     else if (strcasecmp(argv[1], "-map") == 0){
+        int vdiskID = open(argv[2], O_RDWR, 0666);
+        if (vdiskID == -1){
+            printf("error opening vdisk file\n");
+            return -1;
+        }
         read_superblock(vdiskID);
         if(print_block_map(vdiskID)) {
+            close(vdiskID);
             return -1;
-        }    
+        }
+        close(vdiskID);
     }
     else {
         printf("unknown arguments\n");
     }
-    close(vdiskID);
+    
 
 
 }
