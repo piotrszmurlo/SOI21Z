@@ -35,7 +35,6 @@ typedef struct block {
     unsigned int nextBlock;
 } block;
 
-int vdiskID;
 superblock* gsb;
 
 
@@ -46,34 +45,8 @@ superblock* gsb;
 
 // } node;
 
-int create_vfs(void) {
-    superblock* sb = malloc(sizeof(superblock));
-    gsb = sb;
-    sb->filesystemSize = sizeof(superblock);
-    sb->blockSize = BLOCK_SIZE;
-    sb->usedBlocksCount = 0;
-    sb->freeBlocksCount = BLOCK_COUNT;
-    sb->inodeCount = 0;
-    for (int i = 0; i < MAX_FILE_COUNT; i++){
-        sb->used_inodes[i] = 0;
-    }
-    for (int i = 0; i < BLOCK_COUNT; i++){
-        sb->blockMap[i] = 0;
-    }
-    int byte_size;
-    byte_size = sizeof(superblock) + BLOCK_COUNT * BLOCK_SIZE 
-                                   + MAX_FILE_COUNT * sizeof(inode);
-    
-    write(vdiskID, sb, sizeof(superblock));
-    char buffer[BLOCK_SIZE] = {0};                
-
-    for (int i = 0; i < BLOCK_COUNT; i++) {
-        write(vdiskID, buffer, BLOCK_SIZE);
-    }
-    return 0;
-}
-
 int find_free_block() {
+    // read_superblock(fildes);
     for (int i = 0; i < BLOCK_COUNT; i++){
         if (!gsb->blockMap[i]) return i;
     }
@@ -85,12 +58,35 @@ int rewrite_superblock(int fildes) {
     write(fildes, gsb, sizeof(superblock));
     return 0;
 }
+int create_vfs(int fildes) {
+    gsb->filesystemSize = sizeof(superblock);
+    gsb->blockSize = BLOCK_SIZE;
+    gsb->usedBlocksCount = 0;
+    gsb->freeBlocksCount = BLOCK_COUNT;
+    gsb->inodeCount = 0;
+    for (int i = 0; i < MAX_FILE_COUNT; i++){
+        gsb->used_inodes[i] = 0;
+    }
+    for (int i = 0; i < BLOCK_COUNT; i++){
+        gsb->blockMap[i] = 0;
+    }
+    rewrite_superblock(fildes);
+    char buffer[BLOCK_SIZE] = {0};                
+
+    for (int i = 0; i < BLOCK_COUNT; i++) {
+        write(fildes, buffer, BLOCK_SIZE);
+    }
+    return 0;
+}
+
 
 int read_superblock(int fildes) {
     inode inodes[MAX_FILE_COUNT]; 
     int used_inodes[MAX_FILE_COUNT]; 
     lseek(fildes, 0, SEEK_SET);
-    read(fildes, &gsb->filesystemSize, sizeof(unsigned int));
+    if(read(fildes, &gsb->filesystemSize, 4) == -1){
+        printf("read error\n");
+    }
     lseek(fildes, 4, SEEK_SET);
     read(fildes, &gsb->blockSize, sizeof(unsigned int));
     lseek(fildes, 8, SEEK_SET);
@@ -130,7 +126,7 @@ int check_space(int fildes, unsigned int fileSize) {
 int copy_file_to_vfs(int fildes, char* fileName) {
     struct stat stbuf;
     stat(fileName, &stbuf);
-    int newFile = open(fileName, O_RDONLY);
+    int newFile = open(fileName, O_RDONLY, 0666);
     if (newFile == -1) {
         printf("error opening external file");
         return -1;
@@ -143,7 +139,6 @@ int copy_file_to_vfs(int fildes, char* fileName) {
             break;
         }
     }
-    printf("i: %d\n", i);
     gsb->inodeCount++;
     inode* newInode = malloc(sizeof(inode));
     strncpy(newInode->fileName, fileName, MAX_FILENAME_LENGTH-1);
@@ -152,6 +147,7 @@ int copy_file_to_vfs(int fildes, char* fileName) {
     newInode->firstDataBlock = (unsigned int)find_free_block();
     block* newBlock = malloc(sizeof(block));
     gsb->blockMap[newInode->firstDataBlock] = (unsigned int)1;
+    gsb->filesystemSize = gsb->filesystemSize + stbuf.st_size;
     for (int i = 0; i < MAX_FILE_COUNT; i++){
         if (!gsb->used_inodes[i]){
             gsb->inodes[i] = *newInode;
@@ -198,15 +194,18 @@ int print_files(int fildes){
     read(fildes, &used_inodes, MAX_FILE_COUNT*sizeof(int));
     for (int i = 0; i < MAX_FILE_COUNT; i++){
         if (used_inodes[i])
-        printf("PLIK: %s\n", (&inodes[i])->fileName);
+        printf("file: %s(%d)\n", (&inodes[i])->fileName, (int)(&inodes[i])->fileSize);
     }
 }
 
 int print_block_map(int fildes) {
     read_superblock(fildes);
+    printf("Filesystem total size: %d\n", gsb->filesystemSize);
+    printf("Blocks used/free: %d/%d\n", gsb->usedBlocksCount, gsb->freeBlocksCount);
+    printf("Block size: %d\n", gsb->blockSize);
     printf("|Block index : State|\n");
     for (int i = 1; i < BLOCK_COUNT+1; i++) {
-        if (gsb->blockMap[i]) {
+        if (gsb->blockMap[i - 1]) {
             printf("|%d : used", i);
         }
         else {
@@ -214,6 +213,8 @@ int print_block_map(int fildes) {
         }
         if (i%5 == 0) printf("\n");
     }
+    printf("\n");
+    return 0;
 }
 
 int copy_file_from_vfs(int fildes, char* fileName) {
@@ -221,7 +222,7 @@ int copy_file_from_vfs(int fildes, char* fileName) {
     int found = 0;
     inode* fileNode;
     for (int i = 0; i < MAX_FILE_COUNT; i++){
-        if (strcmp(fileName, gsb->inodes[i].fileName) == 0) {
+        if (strcmp(fileName, gsb->inodes[i].fileName) == 0 && gsb->used_inodes[i]) {
             found = 1;
             fileNode = &gsb->inodes[i];
         }
@@ -230,8 +231,7 @@ int copy_file_from_vfs(int fildes, char* fileName) {
         printf("File not found in vdisk");
         return -1;
     }
-    int outFile = open(fileName, O_WRONLY | O_CREAT);
-    // int offset = sizeof(superblock) + fileNode->firstDataBlock*BLOCK_SIZE;
+    int outFile = open(fileName, O_WRONLY | O_CREAT, 0666);
     block* buffer = malloc(sizeof(block));
     buffer->nextBlock = fileNode->firstDataBlock;
     do {
@@ -250,7 +250,6 @@ int delete_file(int fildes, char* fileName) {
     int found = 0;
     inode* fileNode;
     for (int i = 0; i < MAX_FILE_COUNT; i++){
-        printf("res: %s\n", gsb->inodes[i].fileName);
         if (strcmp(fileName, gsb->inodes[i].fileName) == 0 && gsb->used_inodes[i] == 1) {
             found = 1;
             fileNode = &gsb->inodes[i];
@@ -266,14 +265,12 @@ int delete_file(int fildes, char* fileName) {
     for (int i = 0; i < BLOCK_SIZE-4; i++) {
         buffer->data[i] = '\0';
     }
-    // int temp;
-    const unsigned int zero = 0;
+    const unsigned int zero = 0x0000;
     do {
         gsb->freeBlocksCount++;
         gsb->usedBlocksCount--;
         gsb->blockMap[buffer->nextBlock] = 0;
         lseek(fildes, buffer->nextBlock*BLOCK_SIZE + sizeof(superblock), SEEK_SET);
-        // temp = buffer->nextBlock;
         write(fildes, buffer->data, BLOCK_SIZE-4);
         read(fildes, &buffer->nextBlock, sizeof(unsigned int));
         lseek(fildes, (buffer->nextBlock+1)*BLOCK_SIZE + sizeof(superblock) - sizeof(unsigned int), SEEK_SET);
@@ -294,42 +291,64 @@ int delete_vdisk(char* filename, int fildes){
    return 0;
 }
 
-int main(int argc, char** argv) {
-    char *filename = "vdisk";
-    vdiskID = open(filename, O_RDWR | O_CREAT);
-
-    // create_vfs();
-    superblock* sb = malloc(sizeof(superblock));
-    gsb = sb;
-    read_superblock(vdiskID);
-    rewrite_superblock(vdiskID);
-
-    // check_space(vdiskID, 100);
-    printf("ilosc %d\n", gsb->inodeCount);
-    if(copy_file_to_vfs(vdiskID, "koxbkox")){
+int main(int argc, char* argv[]) {
+    if (argc != 3 && argc != 4) {
+        printf("usage: ./fs -[command] [vdisk_name] [file_name] \n");
         return -1;
-    }    
-    // printf("ilosc %d\n", gsb->inodeCount);
-    // if(copy_file_to_vfs(vdiskID, "koxbkox")){
-    //     return -1;
-    // }    
-    // printf("ilosc %d\n", gsb->inodeCount);
-    // if(copy_file_to_vfs(vdiskID, "koxckox")){
-    //     return -1;
-    // }
-    delete_file(vdiskID, "koxbkox");
-    printf("ilosc %d\n", gsb->inodeCount);
-    for (int i =0;i<MAX_FILE_COUNT; i++) {
-        printf("usedinode: %d->%d\n", i, gsb->used_inodes[i]);
     }
-    // copy_file_from_vfs(vdiskID, "koxckox");
-    
-    rewrite_superblock(vdiskID);
-    read_superblock(vdiskID);
-    print_files(vdiskID);
-    // print_block_map(vdiskID);
+    gsb = malloc(sizeof(superblock));
+    mode_t mask = 0000;
+    umask(mask);
+    int vdiskID = open(argv[2], O_RDWR | O_CREAT, 0666);
+
+    if (strcasecmp(argv[1], "-create") == 0) {
+        if(create_vfs(vdiskID)){
+            printf("error creating vdisk\n");
+            return -1;
+        }
+        printf("created vdisk\n");
+    }
+    else if (strcasecmp(argv[1], "-put") == 0) {
+        read_superblock(vdiskID);
+        if(copy_file_to_vfs(vdiskID, argv[3])){
+            printf("error copying file\n");
+            return -1;
+        }    
+        printf("file copied to vdisk\n");
+    }
+    else if (strcasecmp(argv[1], "-cut") == 0) {
+        if(copy_file_from_vfs(vdiskID, argv[3])){
+            return -1;
+        }    
+        printf("copied file");
+    }
+    else if (strcasecmp(argv[1], "-ls") == 0) {
+        read_superblock(vdiskID);
+        if(print_files(vdiskID)){
+            return -1;
+        }    
+    }
+    else if (strcasecmp(argv[1], "-rm") == 0){
+        if(delete_file(vdiskID, argv[3])) {
+            return -1;
+        }    
+    }
+    else if (strcasecmp(argv[1], "-wipe") == 0){
+        if(delete_vdisk(argv[2], vdiskID)) {
+            return -1;
+        }    
+    }
+    else if (strcasecmp(argv[1], "-map") == 0){
+        read_superblock(vdiskID);
+        if(print_block_map(vdiskID)) {
+            return -1;
+        }    
+    }
+    else {
+        printf("unknown arguments\n");
+    }
     close(vdiskID);
-    delete_vdisk("vdisk", vdiskID);
+
 
 }
 
