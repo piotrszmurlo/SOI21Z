@@ -38,15 +38,7 @@ typedef struct block {
 superblock* gsb;
 
 
-
-// typedef struct node {
-//     inode data;
-//     node* next;
-
-// } node;
-
 int find_free_block() {
-    // read_superblock(fildes);
     for (int i = 0; i < BLOCK_COUNT; i++){
         if (!gsb->blockMap[i]) return i;
     }
@@ -108,7 +100,7 @@ int read_superblock(int fildes) {
     lseek(fildes, offset, SEEK_SET);
     read(fildes, &(gsb->used_inodes), MAX_FILE_COUNT*sizeof(int));
     read(fildes, gsb->blockMap, sizeof(gsb->blockMap));
-
+    return 0;
 }
 
 int check_space(int fildes, unsigned int fileSize) {
@@ -234,6 +226,7 @@ int print_files(int fildes){
         if (used_inodes[i])
         printf("file: %s(%d)\n", (&inodes[i])->fileName, (int)(&inodes[i])->fileSize);
     }
+    return 0;
 }
 
 int print_block_map(int fildes) {
@@ -316,6 +309,7 @@ int delete_file(int fildes, char* fileName) {
     gsb->inodeCount--;
     free(buffer);
     rewrite_superblock(fildes);
+    return 0;
 }
 
 int delete_vdisk(char* filename, int fildes){
@@ -429,7 +423,6 @@ int main(int argc, char* argv[]) {
         printf("unknown arguments\n");
     }
     
-
-
+    return 0;
 }
 
