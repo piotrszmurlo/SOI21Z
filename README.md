@@ -1,1 +1,1 @@
-# SOI21Z
+# SOI21Z - operating systems course
